@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>GPSマップ追跡アプリ</title>
+    <!-- Leaflet.jsのCSS読み込み -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        /* 地図を表示するエリアのサイズを指定 */
+        #map {
+            width: 100%;
+            height: 500px;
+        }
+        #status {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>GPSリアルタイムマップ</h1>
+    <div id="status">位置情報を取得中...</div>
+    <!-- 地図用コンテナ -->
+    <div id="map"></div>
+
+    <!-- Leaflet.jsのJavaScript読み込み -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        // 1. 地図の初期化（初期の中心位置とズーム倍率を設定）
+        const map = L.map('map').setView([34.979781, 135.963748], 15); // 初期値：立命館大学BKC
+
+        // 2. 背景地図（OpenStreetMap）タイルレイヤーを追加
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        let marker = null; // 現在地のマーカー
+        let circle = null; // 精度（誤差範囲）の円
+
+        // 3. watchPositionでリアルタイムに位置情報を監視・更新
+        if (!navigator.geolocation) {
+            document.getElementById('status').textContent = 'お使いのブラウザは位置情報に対応していません。';
+        } else {
+            navigator.geolocation.watchPosition(
+    (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const accuracy = position.coords.accuracy; // 精度（メートル）
+
+        const isHighPrecision = accuracy <= 10;
+        document.getElementById('status').innerHTML = `
+            <span style="color: ${isHighPrecision ? 'green' : '#b36b00'};">
+                ${isHighPrecision ? '高精度で測位しました' : '位置を取得しました（精度改善待ち）'}
+            </span><br>
+            緯度: ${lat.toFixed(6)} / 経度: ${lng.toFixed(6)} (精度: 約${Math.round(accuracy)}m)
+            ${isHighPrecision ? '' : '<br><span style="font-size: 0.9em; color: gray;">屋外の開けた場所でしばらくお待ちください。精度は端末やブラウザーの測位結果に依存します。</span>'}
+        `;
+
+        const latlng = [lat, lng];
+
+        if (!marker) {
+            marker = L.marker(latlng).addTo(map).bindPopup('現在地').openPopup();
+            circle = L.circle(latlng, { radius: accuracy, color: isHighPrecision ? 'green' : '#b36b00' }).addTo(map);
+            map.setView(latlng, 16);
+        } else {
+            marker.setLatLng(latlng);
+            circle.setLatLng(latlng);
+            circle.setRadius(accuracy);
+            circle.setStyle({ color: isHighPrecision ? 'green' : '#b36b00' });
+        }
+    },
+    (error) => {
+        console.error(error);
+        document.getElementById('status').textContent = 'エラー: ' + error.message;
+    },
+    {
+        enableHighAccuracy: true, // 必須：高精度モード
+        timeout: 15000,
+        maximumAge: 0             // キャッシュを使わず最新を取得
+    }
+  );
+}
+    </script>
+</body>
+</html>
